@@ -10,6 +10,8 @@
 set -e
 
 echo "::group::Setting up"
+curl https://storage.googleapis.com/git-repo-downloads/repo > ~/.local/bin/repo
+chmod 755 ~/.local/bin/repo
 export PATH=/home/test-runner/ci-actions/scripts:/home/test-runner/.local/bin:/home/test-runner/.bin:$PATH
 mkdir ver
 cd ver
@@ -84,7 +86,10 @@ export SKIP_DUPLICATED_PROOFS=${INPUT_SKIP_DUPS}
 FAIL=0
 
 L4V_DIR="$PWD/l4v"
-do_run_tests() { (cd "$L4V_DIR" && ./run_tests -j 2 ${INPUT_SESSION} "$@"); }
+do_run_tests() {
+  # 2 parallel jobs, scale timeouts by 50%
+  (cd "$L4V_DIR" && ./run_tests --scale-timeouts 1.5 -j 2 ${INPUT_SESSION} "$@");
+}
 
 do_run_tests || FAIL=1
 
@@ -112,29 +117,28 @@ else
 fi
 echo "::endgroup::"
 
+echo "::group::Artifacts"
 # Prepare artifacts for upload outside the VM
-mkdir -p ~/artifacts
+ARTIFACT_DIR="${HOME}/artifacts"
 
-# Export the C graph-lang for use in binary verification, if it was generated.
-# If it wasn't generated, there are several possible reasons:
-# - SimplExportAndRefine is not enabled for this configuration.
-# - SimplExportAndRefine or one of its dependenies failed.
-# - SimplExportAndRefine is enabled, but didn't run, because the cached
-#   Isabelle image was valid. This means that the C spec didn't change from
-#   the previous run of this configuration.
-# In all cases where the C graph-lang wasn't generated, we're not interested
-# in running binary verification, so we skip the artifact export.
-echo "::group::C graph-lang export"
-SIMPL_EXPORT_FILE="$L4V_DIR/proof/asmrefine/export/$L4V_ARCH/CFunDump.txt"
-if [ -f "$SIMPL_EXPORT_FILE" ]; then
-  echo "Found CFunctions.txt"
-  SIMPL_EXPORT_ARTIFACT_DIR="${HOME}/artifacts/simpl-export"
-  mkdir -p "${SIMPL_EXPORT_ARTIFACT_DIR}"
-  cp "$SIMPL_EXPORT_FILE" "${SIMPL_EXPORT_ARTIFACT_DIR}/CFunctions-${L4V_ARCH_FEATURES}.txt"
-elif do_run_tests -L | grep -q SimplExportAndRefine; then
-  echo "Nothing to export: SimplExportAndRefine failed or used a cached image"
-else
-  echo "Nothing to export: SimplExportAndRefine was not enabled"
+# Export the effective manifest used for this proof run.
+# This provides downstream jobs (e.g. binary verification) with a consistent
+# method for reconstructing the source versions used.
+MANIFEST_DIR="${ARTIFACT_DIR}/manifests/${L4V_ARCH_FEATURES}"
+mkdir -p "${MANIFEST_DIR}"
+repo manifest -r --suppress-upstream-revision > "${MANIFEST_DIR}/manifest.xml"
+
+# Export kernel build artifacts and C graph-lang for use in binary verification.
+# The script saves artifacts under subdirectories named after L4V_ARCH_FEATURES,
+# so it is safe for multiple matrix jobs to upload to the same artifact.
+KERNEL_EXPORT_ROOT="${ARTIFACT_DIR}/kernel-builds"
+KERNEL_EXPORT_SCRIPT="${L4V_DIR}/spec/cspec/c/export-kernel-builds.py"
+# Some branches might not have the script.
+if [ -x "${KERNEL_EXPORT_SCRIPT}" ]; then
+  "${KERNEL_EXPORT_SCRIPT}" \
+    --export-root "${KERNEL_EXPORT_ROOT}" \
+    --manifest-xml "${MANIFEST_DIR}/manifest.xml" \
+    || FAIL=1
 fi
 echo "::endgroup::"
 

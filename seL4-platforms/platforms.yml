@@ -96,10 +96,10 @@ platforms:
     arch: arm
     modes: [64]
     smp: [64]
+    aarch_hyp: [64]
     platform: imx8mq-evk
-    req: [imx8mq2]
+    req: [imx8mq]
     march: armv8a
-    disabled: true
 
   MAAXBOARD:
     arch: arm
@@ -151,11 +151,11 @@ platforms:
   ODROID_C4:
     arch: arm
     modes: [64]
+    aarch_hyp: [64]
+    smp: [64]
     platform: odroidc4
-    req: [odroidc4]
+    req: [odroidc4_1, odroidc4_2]
     march: armv8a
-    disabled: true
-    no_hw_build: true
 
   ODROID_X:
     arch: arm
@@ -207,7 +207,7 @@ platforms:
     modes: [64]
     smp: [64]
     platform: zynqmp
-    req: [zcu102]
+    req: [zcu102] # [zcu102, zcu102_2]
     march: armv8a
 
   ZYNQMP106:
@@ -319,8 +319,6 @@ platforms:
 # platforms where MCS is wholly unsupported
 # (for platforms with partial support see sel4test-hw/build.py and comments below)
 mcs_unsupported_platforms:
-  # fails SCHED0012
-  - IMX8MQ_EVK
   # unsupported for specific configs: ODROID_X4, TX2
   # unsupported for multicore: SABRE, IMX8MM_EVK
   # see also https://github.com/seL4/ci-actions/blob/master/sel4test-hw/build.py

@@ -25,7 +25,8 @@ import time
 
 
 def adjust_build_settings(build: Build):
-    del build.settings['BAMBOO']  # not used in this build, avoid warning
+    if 'BAMBOO' in build.settings:
+        del build.settings['BAMBOO']  # not used in this build, avoid warning
 
     # see discussion on https://github.com/seL4/sel4bench/pull/20 for hifive exclusion
     if build.is_smp() or build.get_platform().name == 'HIFIVE':
@@ -322,7 +323,7 @@ def gen_web(runs: List[Run], yml, file_name: str):
                     f.write(f"    <td>{board['soc']}/{board_name}</td>\n")
                 f.write(f"    <td class=\"data-table-right\">{board['clock']}</td>\n")
                 f.write(f"    <td>{board['compiler']}</td>\n")
-                f.write(f'    <td>{build_command}</td>\n')
+                f.write(f'    <td class=\"monospace\">{build_command}</td>\n')
                 f.write(f'  </tr>')
 
             f.write(f'</table>\n\n')
